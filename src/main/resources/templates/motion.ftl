@@ -5,7 +5,7 @@
       <video id="my-video" class="video-js vjs-big-play-centered vjs-fill" controls preload="auto"
              data-setup="{}">
         <source src="${assets.cdnBase}/media/bw-demo2019.mp4" type='video/mp4'>
-        <source src="${assets.cdnBase}/media/bw-demo2019.webm" type="video/webm">
+        <source src="${assets.cdnBase}/media/bw-demo2019-1.webm" type="video/webm">
         <p class="vjs-no-js">
           To view this video please enable JavaScript, and consider upgrading to a web browser that
           <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
