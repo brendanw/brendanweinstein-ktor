@@ -116,7 +116,7 @@ fun sendEmail(fromAddress: String, subject: String, message: String) {
     mimeMessage.setFrom(InternetAddress(fromAddress))
     mimeMessage.setRecipients(
         Message.RecipientType.TO,
-        InternetAddress.parse("brendan@basebeta.com")
+        InternetAddress.parse(System.getenv("BASEBETA_USERNAME"))
     )
     mimeMessage.subject = newSubject
     mimeMessage.setText(message)

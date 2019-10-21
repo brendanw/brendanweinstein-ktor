@@ -1,5 +1,4 @@
 "use strict";
-
 var $j = jQuery.noConflict();
 $j(document).ready(function () {
   var t = $j(".about_top_container img"),
@@ -43,42 +42,6 @@ $j(document).ready(function () {
     touch: !1,
     useCSS: !1
   });
-});
-var $j = jQuery.noConflict();
-$j(document).ready(function () {
-  var t = $j('.company_selection_form .individual_company_selection:first-child input[type="radio"]'),
-    e = $j(".company_selection_form .individual_company_selection:first-child .radio_button"),
-    i = t.val();
-  e.addClass("active"), $j('#input_1_2 input[value="' + i + '"]').prop("checked", !0);
-  var o = t.attr("data-email");
-  $j("#company_to_email").text(o), $j('.company_selection_form input[type="radio"]').click(function () {
-    var t = $j(this).val(),
-      e = $j(this).attr("data-email");
-    $j('#input_1_2 input[value="' + t + '"]').prop("checked", !0), $j("#company_to_email").text(e), $j(".radio_button.active").removeClass("active"), $j(this).closest(".individual_company_selection").find(".radio_button").addClass("active")
-  })
-});
-var $j = jQuery.noConflict();
-$j(document).ready(function () {
-  $j(".back_to_top").click(function () {
-    $j("html").velocity("scroll", 2500, "easeOutCirc")
-  });
-  var t = $j("#mc-embedded-subscribe-form"),
-    e = ($j("#mc-embedded-subscribe-form input[type=submit]"), $j("#mc-embedded-subscribe-form input[type=email]"), $j("#mce-error-response")),
-    i = $j("#mce-success-response");
-  t.submit(function (o) {
-    o.preventDefault(), $j.ajax({
-      method: "GET",
-      url: t.attr("action"),
-      data: t.serialize(),
-      dataType: "jsonp",
-      success: function (t) {
-        if ("error" === t.result) {
-          var o = t.msg.slice(3);
-          e.text(o).fadeIn(300).delay(2e3).fadeOut(300)
-        } else i.text("Success!").fadeIn(300).delay(2e3).fadeOut(300)
-      }
-    })
-  })
 });
 var $j = jQuery.noConflict();
 $j(document).ready(function () {
@@ -462,43 +425,6 @@ $j(document).ready(function () {
         a = $j(this).offset().left;
       a > 0 && a < l && (i.text(e), o.text(t))
     })
-  })
-});
-var $j = jQuery.noConflict();
-$j(document).ready(function () {
-  var t = window.location.search.substring(1);
-  t && ($j(".publications_list li.active").removeClass("active"), $j('.publications_list li[data-publication="' + t + '"]').addClass("active"), $j(".publication_articles." + t).find("img.article_image").each(function () {
-    var t = $j(this).attr("data-image");
-    $j(this).attr("src", t), $j(this).removeAttr("data-image")
-  }), $j(".publication_articles.active").hide().removeClass("active"), $j(".publication_articles." + t).fadeIn(500).addClass("active")), $j(".publications_filter li").click(function () {
-    $j(".publications_filter li.active").removeClass("active"), $j(this).addClass("active");
-    var t = $j(this).attr("data-category");
-    $j(".publications_list li.active").removeClass("active"), $j(".publications_list li").each(function () {
-      $j(this).hasClass(t) && $j(this).addClass("active")
-    })
-  }), $j(".publications_list li").click(function () {
-    var t = $j(this).attr("data-publication");
-    $j(".publications_list li.active").removeClass("active"), $j(".publications_filter li.active").removeClass("active"), $j(this).addClass("active"), $j(".publication_articles." + t).find("img.article_image").each(function () {
-      if ($j(this)[0].hasAttribute("data-image")) {
-        var t = $j(this).attr("data-image");
-        $j(this).attr("src", t), $j(this).removeAttr("data-image")
-      }
-    }), $j(".publication_articles.active").fadeOut(500, function () {
-      $j(this).removeClass("active"), $j(".publication_articles." + t).fadeIn(500).addClass("active")
-    })
-  }), $j(".article_slider").flexslider({
-    animation: "fade",
-    controlNav: !1,
-    slideshowSpeed: 2e3,
-    slideshow: !1,
-    prevText: "",
-    nextText: "",
-    start: function (t) {
-      t.find(".current_slide").text(t.currentSlide + 1), t.find(".total_slides").text(t.count)
-    },
-    after: function (t) {
-      t.find(".current_slide").text(t.currentSlide + 1), t.find(".total_slides").text(t.count)
-    }
   })
 });
 var $j = jQuery.noConflict();
