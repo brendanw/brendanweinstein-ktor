@@ -6,7 +6,7 @@ This is my professional website/resume for wingsuit projects. We have one endpoi
 
 To run locally, first install gradle:
 
-On mac: `brew install gradle` (visit https://brew.sh/ for homebrew installation instructions) . 
+On mac: `brew install gradle` (visit https://brew.sh/ for homebrew installation instructions).  
 On windows: `choco install gradle` (visit https://chocolatey.org/install for chocolatey installation instructions)
 
 Then run:
