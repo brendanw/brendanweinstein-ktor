@@ -74,7 +74,7 @@ $j(document).ready(function () {
     stills_slider = $j(".homepage_contact_slider"),
     homepage_contact_content = $j(".homepage_contact_content"),
     homepage_about_content = $j(".homepage_about_content"),
-    $ = $j(".homepage_demo_content");
+    homepage_demo_content = $j(".homepage_demo_content");
   setTimeout(function () {
     $j(".landing_logo_text").fadeOut(1500, function () {
       $j(".homepage_landing").fadeOut(1e3)
@@ -137,7 +137,7 @@ $j(document).ready(function () {
     p = !0, homepage_about_content.load("about .about_container", function () {
       $j.ajaxSetup({
         cache: !0
-      }), $j.getScript("/static/js/dist/about.js"),  $j(".mobile_homepage").remove(), window.history.pushState({
+      }), $j.getScript("/static/js/dist/about.js"), $j(".mobile_homepage").remove(), window.history.pushState({
         ajaxPage: !0,
         pageName: "about"
       }, "About", "about")
@@ -236,7 +236,7 @@ $j(document).ready(function () {
     contactTransitions = !0, homepage_contact_content.load("contact #content", function () {
       $j.ajaxSetup({
         cache: !0
-      }), $j.getScript("/js/dist/contact.js"), $j(".mobile_homepage").remove(), window.history.pushState({
+      }), $j.getScript("/static/js/dist/contact.js"), $j(".mobile_homepage").remove(), window.history.pushState({
         ajaxPage: !0,
         pageName: "contact"
       }, "contact", "contact")
@@ -347,10 +347,11 @@ $j(document).ready(function () {
       }), homepage_logo.velocity("reverse"))
     };
   demo_title.hover(onOpenDemo, onCloseDemo), demo_title.click(function () {
-    w = !0, $.load("motion #content", function () {
+    w = !0, homepage_demo_content.load("motion #content", function () {
       $j.ajaxSetup({
         cache: !0
-      }), $j.getScript("static/js/dist/motion.js"), $j(".mobile_homepage").remove(), window.history.pushState({
+      }), $j.getScript("https://vjs.zencdn.net/7.6.5/video.js"),
+          $j(".mobile_homepage").remove(), window.history.pushState({
         ajaxPage: !0,
         pageName: "motion"
       }, "motion", "motion")
@@ -372,7 +373,7 @@ $j(document).ready(function () {
                 duration: 1e3,
                 easing: "easeInCubic",
                 complete: function () {
-                  $.velocity({
+                  homepage_demo_content.velocity({
                     translateX: "0%"
                   }, {
                     delay: 300

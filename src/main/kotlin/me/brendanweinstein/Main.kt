@@ -96,6 +96,7 @@ var server = embeddedServer(Netty, port) {
 fun sendEmail(fromAddress: String, subject: String, message: String) {
   val username = System.getenv("BASEBETA_USERNAME")
   val password = System.getenv("BASEBETA_PASSWORD")
+  println("username: $username")
   val newSubject = "$fromAddress: $subject"
   val prop = Properties()
   prop["mail.smtp.host"] = "smtp.gmail.com"

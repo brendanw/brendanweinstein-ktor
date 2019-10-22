@@ -24,7 +24,6 @@
 <script type="text/javascript" src="/static/js/dist/jquery.flexslider-min.js"></script>
 <script type="text/javascript" src="/static/js/dist/jquery.fitvids.js"></script>
 <script type='text/javascript' src='https://use.fontawesome.com/bfa5b116b0.js?ver=5.1.1'></script>
-<script type="text/javascript" src="/static/js/dist/instafeed.min.js"></script>
 <script type="text/javascript" src="/static/js/dist/velocity.min.js"></script>
 <script type="text/javascript" src="/static/js/dist/jquery.mousewheel.min.js"></script>
 <script type="text/javascript" src="/static/js/dist/mixitup-v2.js"></script>

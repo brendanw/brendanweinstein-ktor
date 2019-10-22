@@ -17,5 +17,5 @@ You should be able to visit http://localhost:5001/ to browse the website.
 
 To deploy to heroku:
 
-`./gradlew assemble && git commit -a -m "Server deployment" && git push heroku master`
+`./gradlew installDist && git commit -a -m "Server deployment" && git push heroku master`
 
