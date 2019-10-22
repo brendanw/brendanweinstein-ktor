@@ -11,6 +11,7 @@
     <link rel="stylesheet" type="text/css" href="${assets.cdnBase}/style/css/home.css" media="all"/>
     <link rel="stylesheet" type="text/css" href="${assets.cdnBase}/style/css/video.css" media="all" />
     <link rel="stylesheet" type="text/css" href="${assets.cdnBase}/style/css/contact.css" media="all" />
+    <link href="//vjs.zencdn.net/7.3.0/video-js.min.css" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>

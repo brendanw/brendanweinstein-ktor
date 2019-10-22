@@ -1,5 +1,7 @@
 <#import "base.ftl" as base>
 <@base.page>
+    <style></style>
+  <link href="//vjs.zencdn.net/7.3.0/video-js.min.css" rel="stylesheet">
   <div id="content" style="display: flex; flex-flow: column">
     <div class="video-container">
       <video id="my-video" class="video-js vjs-big-play-centered vjs-fill" controls preload="auto"
