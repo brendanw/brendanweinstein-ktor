@@ -11,6 +11,7 @@
   <link rel="stylesheet" type="text/css" href="${assets.cdnBase}/style/css/home.css" media="all"/>
   <link rel="stylesheet" type="text/css" href="${assets.cdnBase}/style/css/video.css" media="all"/>
   <link rel="stylesheet" type="text/css" href="${assets.cdnBase}/style/css/contact.css" media="all"/>
+  <link rel="stylesheet" type="text/css" href="${assets.cdnBase}/style/css/tippy.css" media="all"/>
   <link href="//vjs.zencdn.net/7.3.0/video-js.min.css" rel="stylesheet">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
@@ -62,6 +63,13 @@
                 class="flex-active-slide"></li>
           </ul>
         </div>
+
+        <a href="#" id="nicole" data-toggle="tooltip"
+           title="Photo by Nicole Schafer"
+           style="position: absolute; top: 30px; left: 50px">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle fill="#FFF" cx="12" cy="12" r="3.2"/><path fill="#FFF" d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>
+        </a>
+
         <span class="homepage_line contact_line"
               style="background-color: rgb(255, 255, 255); width: 40px;"></span>
       </section>
@@ -96,7 +104,8 @@
         </ul>
 
         <span class="homepage_line demo_line" style="background-color: rgb(255, 255, 255); width: 40px;"></span>
-      </section>
+
+       </section>
     </div>
 
     <div class="homepage_landing">
@@ -160,5 +169,13 @@
 <script type="text/javascript" src="/static/js/dist/jquery.mousewheel.min.js"></script>
 <script type="text/javascript" src="/static/js/dist/mixitup-v2.js"></script>
 <script type='text/javascript' src='/static/js/dist/home.js'></script>
+<script src="/static/js/dist/popper.min.js"></script>
+<script src="/static/js/dist/tippy.iife.js"></script>
+<script>
+  tippy('#nicole', {
+    content: "Photo by Nichole Schafer<br>nichole-schafer.com",
+    placement: 'right'
+  });
+</script>
 </body>
 </html>

@@ -589,6 +589,12 @@ ul.social_icons li a:hover {
     right: 50px
 }
 
+.photo_attribution {
+    position: absolute;
+    top: 30px;
+    left: 50px
+}
+
 .homepage_panels section {
     box-sizing: border-box;
     width: 33.33%;
