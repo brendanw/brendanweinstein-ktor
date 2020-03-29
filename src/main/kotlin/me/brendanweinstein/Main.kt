@@ -10,6 +10,7 @@ import io.ktor.freemarker.FreeMarker
 import io.ktor.freemarker.FreeMarkerContent
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.default
 import io.ktor.http.content.files
 import io.ktor.http.content.static
 import io.ktor.http.content.staticRootFolder
@@ -48,12 +49,21 @@ var server = embeddedServer(Netty, port) {
     }
   }
 
-  install(Routing) {
+  install(Routing) routing@{
     static("static") {
       staticRootFolder = File("public")
       files(".")
       files("js")
       files("media")
+    }
+    static("blog") static@{
+      staticRootFolder = File("public")
+      val postsDir = File("public/blog/posts")
+      postsDir.listFiles()?.forEach { file ->
+        val name: String = file.name.replace(".html", "")
+        this@routing.static(name) { default(file) }
+      }
+      default(File("blog/index.html"))
     }
 
     data class Assets(val cdnBase: String)
@@ -66,6 +76,11 @@ var server = embeddedServer(Netty, port) {
       val message = post["message"] ?: return@post call.respond(status = HttpStatusCode.BadRequest, message = "invalid_message")
       sendEmail(fromAddress = fromAddress, subject = subject, message = message)
       call.respond(status= HttpStatusCode.OK, message = Any())
+    }
+
+    get("/techblog") {
+      val freeMarkerContent = FreeMarkerContent("blog.ftl", model = null)
+      call.respond(freeMarkerContent)
     }
 
     get("/about") {

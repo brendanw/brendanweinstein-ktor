@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Posts - Brendan Weinstein</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+  <style>
+    @font-face {
+      font-family: 'd-condensed'; /*a name to be used later*/
+      src: url('https://d3gbt3n5waomy7.cloudfront.net/style/font/d-condensed.otf'); /*URL to font*/
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      margin: 0 0 0 0;
+      padding: 0 0 0 0;
+      width: 100%;
+      height: 150px;
+      background: #000;
+      color: #FFF;
+      display: flex;
+      align-items: center;
+    }
+
+    header h1 {
+      margin: 0 0 0 0;
+      padding: 0 0 0 0;
+      font-size: 50px;
+      letter-spacing: 15px;
+      font-family: d-condensed, sans-serif;
+      color: #FFF
+    }
+
+    header h1 a {
+      text-transform: uppercase;
+      margin-left: 50px;
+      user-select: none;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    header h1 a:hover {
+      text-transform: uppercase;
+      margin-left: 50px;
+      user-select: none;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .blog-item-list {
+      margin-top: 50px;
+    }
+
+    .blog-item {
+      font-family: monospace;
+    }
+
+    .main-content {
+      margin-left: 50px;
+      margin-top: 50px;
+      margin-right: 50px;
+      max-width: 900px;
+    }
+
+    h2 {
+      margin-bottom: 30px;
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>
+    <a href="/blog">Brendan Weinstein</a>
+  </h1>
+</header>
+<div class="main-content">
+  <h2>Typo-safe multiplatform experiments with Kotlinpoet</h2>
+  <p class="date"><i>28 March 2020</i></p>
+
+  <p>A year ago I made a mistake on an experiment I thoroughly tested. It was an experiment to expose different buckets
+    of users to different sets of pricing. I tested each variant of the experiment thoroughly, going through the pains
+    to make a release build, upload it to the play store, and do end-to-end testing of purchases. And for the last step
+    of wrapping up my work I added in what the matching experiment names on the server should be in client code. And I
+    made a typo error. We launched the experiment and didn’t catch the error until several weeks later. It was a costly
+    mistake, as there were further experiments we wanted to conduct that depended on the results of that experiment.</p>
+
+  <p>Friends shared stories of similar mistakes happening, but with the field name of a variant having the typo. They
+    called it fat thumbing. My CTO suggested the best way to avoid the mistake in the future would be to have a location
+    where all the experiment names are defined on the client and an endpoint that returns the list of experiment names,
+    and run a test to check that all the client-defined names in the experiment exist on the server.</p>
+
+  <p>I thought we could do better. When I start implementing an experiment, I’d like to write code that looks like:</p>
+
+  <pre>
+val variant = Experiment.PRICING.activeVariant
+when (variant) { 
+   is CONTROL -> PurchaseActivity.launch(price = variant.price) 
+   is A -> PurchaseActivity.launch(price = variant.price, metadata = variant.metadata)
+   is B -> PurchaseActivity.launch(price = variant.price) 
+}
+  </pre>
+
+  <p>I’d like to type Experiment and then see a list of autocomplete options in the IDE. Once I have a reference to the
+    active variant for the user, then I’d like to type a dot and see a list of accessible fields for that variant that
+    are strongly typed. My first stab at an implementation looked something like this:</p>
+
+  <pre>
+object Experiment { 
+   var PRICING = PricingExperiment()  
+
+   class PricingExperiment : Experiment() { 
+      val activeVariant: PricingVariant 
+      get() {
+         return _activeVariant as PricingVariant 
+      }      
+
+      sealed class PricingVariant { 
+         class CONTROL(val price: Int) : PricingVariant() {} 
+         class A(val price: Int, val metadata: String) : PricingVariant() {  }  
+         class B(val price: Int) : PricingVariant() {   } 
+      } 
+   }
+    
+}  
+
+abstract class Experiment {
+   protected var _activeVariant 
+   fun updateVariant(variant: JRSUIConstants.Variant) 
+}
+  </pre>
+
+  <p>The idea is that I’ll write a build task that generates this code. I’ll separately have a client that runs on app
+    startup that passes a user id to and endpoint and get a list of experiments that user should be in, the active
+    variant for each experiment, and values for individual fields defined for each variant.</p>
+
+  <p>The problem is how do I update the experiments and variants in a thread-safe way. I need to make the network call
+    and the logic to populate the new experiments objects on a background thread, and I want to have references to those
+    objects on the main thread in a way that guarantees I have the latest version. The approach I took is to make copies
+    of experiments and variants when populating on a background thread, and put each of those new copies into a newly
+    constructed experiment map. The experimentMap is the only mutable state shared between threads, so we use an
+    atomic reference for this one field and get thread safety from all of its references by following copy-on-write.
+    Now we have an overall design that looks like this:</p>
+
+  <pre>
+object ExperimentRepository { 
+   var PRICING: PricingExperiment 
+   get() = experimentMap.value[“Pricing”]!! as PricingExperiment  
+
+   val experimentMap: AtomicRef = atomic(
+      mapOf( 
+         "pricing" to PricingExperiment()   
+      )
+   )  
+
+   val variantMap: Map = mapOf( 
+      VariantKey(“pricing”, “control”) to PricingExperiment.PricingVariant.CONTROL(),
+      VariantKey(“pricing”, “a”) to PricingExperiment.PricingVariant.A(),
+      VariantKey(“pricing”, “b”) to PricingExperiment.PricingVariant.B() 
+   )     
+}
+
+abstract class Experiment {
+  abstract var name: String,
+  abstract var isActive: Boolean,
+  abstract var activeVariant: Variant
+  abstract fun copy(activeVariant: Variant, isActive: Boolean): Experiment 
+}
+
+interface Variant {
+  val _name: String
+  fun populateFromFieldMap( fieldMap: Map<String, FieldResponse>): Variant
+}
+
+data class VariantKey(val name: String, val variantId: String )
+
+data class FieldResponse(
+  val type: String,
+  val key: String,
+  val value: String 
+)
+
+class PricingExperiment(
+  override var name: String = “pricing”, 
+  override var isActive: Boolean = false,
+  override var activeVariant: Variant = PricingVariant.CONTROL()
+) : Experiment() { 
+  val activeVariant: PricingVariant 
+    get() { 
+      return activeVariant as PricingVariant
+    }
+
+  sealed class PricingVariant { 
+    class CONTROL(val price: Int) : PricingVariant() {   }
+    class A(val price: Int, val metadata: String) : PricingVariant() {  }  
+    class B(val price: Int) : PricingVariant() {   } 
+  }
+}
+
+inline fun <reified T> safeValue(
+    value: String?,
+    fallbackValue: T
+): T {
+  if (value == null) return fallbackValue
+  return try {
+    when (T::class) {
+      Int::class -> value.toInt() as T
+      Boolean::class -> value.toBoolean() as T
+      Float::class -> value.toFloat() as T
+      Double::class -> value.toDouble() as T
+      else -> throw IllegalArgumentException("${T::class.simpleName} is not supported by safeValue“)
+    }
+  } catch (e: NumberFormatException) {
+    //TODO: Log exception
+    fallbackValue
+  }
+}
+</pre>
+
+
+</div>
+</body>
+</html>
