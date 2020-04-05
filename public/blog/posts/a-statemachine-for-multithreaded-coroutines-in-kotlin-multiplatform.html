@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Posts - Brendan Weinstein</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+        integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+  <style>
+    @font-face {
+      font-family: 'd-condensed'; /*a name to be used later*/
+      src: url('https://d3gbt3n5waomy7.cloudfront.net/style/font/d-condensed.otf'); /*URL to font*/
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      margin: 0 0 0 0;
+      padding: 0 0 0 0;
+      width: 100%;
+      height: 150px;
+      background: #000;
+      color: #FFF;
+      display: flex;
+      align-items: center;
+    }
+
+    header h1 {
+      margin: 0 0 0 0;
+      padding: 0 0 0 0;
+      font-size: 50px;
+      letter-spacing: 15px;
+      font-family: d-condensed, sans-serif;
+      color: #FFF
+    }
+
+    header h1 a {
+      text-transform: uppercase;
+      margin-left: 50px;
+      user-select: none;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    header h1 a:hover {
+      text-transform: uppercase;
+      margin-left: 50px;
+      user-select: none;
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .blog-item-list {
+      margin-top: 50px;
+    }
+
+    .blog-item {
+      font-family: monospace;
+    }
+
+    .main-content {
+      margin-left: 50px;
+      margin-top: 50px;
+      margin-right: 50px;
+      max-width: 900px;
+    }
+
+    h2 {
+      margin-bottom: 30px;
+    }
+
+    pre {
+      padding-left: 20px;
+      background: #eee
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>
+    <a href="/blog">Brendan Weinstein</a>
+  </h1>
+</header>
+<div class="main-content">
+  <h2>A State Machine for Multi-Threaded Coroutines in Kotlin Multiplatform</h2>
+
+  <p class="date"><i>5 April 2020</i></p>
+
+  <p>State machines work well for kotlin multiplatform, where we can write business logic once in kotlin but still need to
+    re-implement rendering the user interface on iOS and android.</p>
+
+  <p>A state machine lays out a set of finite states that the UI can be in at a given moment in response to a set of
+    finite actions/events. A well-defined state machine allows us to have a readable narrative of what actions led to
+    which states through the life of our program. This saves us from cycles lost adding breadcrumbs for tricky bugs,
+    as well as cycles lost to incorrect inferences required by unclear logs.</p>
+
+  <p>Writing a state machine class that plays well with multithreaded coroutines (native-mt) took significant trial
+    and error, so I wanted to share code that gives you a Mealey state machine with just one file of minimal kotlin.
+    I've used this without issue on both android and iOS:</p>
+
+  <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5">StateMachine.kt</a>
+  <pre><code>
+class StateWrapper&lt;T&gt;(var state: T)
+
+class StateMachine&lt;R : Any, T&gt;(
+  val scope: CoroutineScope,
+  private val initialState: T,
+  private val sideEffects: List<(Flow&lt;R&gt;, () -> T) -> Flow&lt;R&gt;>,
+  private val reducer: suspend (accumulator: T, value: R) -> T
+) {
+  val viewState: FlowRelay&lt;T&gt; = FlowRelay()
+  private var isInitialized = atomic(false)
+  private val inputActions: BroadcastChannel&lt;R&gt; = BroadcastChannel(Channel.BUFFERED)
+
+  init {
+    scope.launch {
+      val lastState = StateWrapper(initialState)
+      val flowList = sideEffects.map { sideEffect ->
+        sideEffect(inputActions.asFlow(), { lastState.state })
+      }.run {
+        toMutableList().apply {
+          add(inputActions.asFlow())
+        }
+      }
+      flowList.onBindMerge { isInitialized.value = true }
+        .onEach { kprint("result: $it") }
+        .onCompletion { inputActions.cancel() }
+        .scan(lastState.state, reducer)
+        .distinctUntilChanged()
+        .collect { outputState ->
+          kprint("state emitted: $outputState")
+          lastState.state = outputState
+          viewState.send(outputState)
+        }
+    }
+
+    fun dispatchAction(action: R) = scope.launch {
+      kprint("Received input action: $action")
+      while (!isInitialized.value) {
+        yield()
+      }
+      inputActions.send(action)
+    }
+  }
+
+}
+</code></pre>
+
+  <p>The dispatchAction function is not elegant. We can clean it up by using a Rendezvouz channel. A rendezvouz channel
+    suspends send calls until there is at least one downstream subscriber and it suspends receiver calls until there is
+    at
+    least one upstream send call. This is a cleaner version of the above code and uses a rendezvouz channel:</p>
+
+  <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5">StateMachine.kt</a>
+  <pre>
+    <code>
+class StateMachine&lt;R : Any, T&gt;(
+    val scope: CoroutineScope,
+    private val initialState: T,
+    private val sideEffects: List<(Flow&lt;R&gt;, () -> T) -> Flow&lt;R&gt;>,
+    private val reducer: suspend (accumulator: T, value: R) -> T
+) {
+    val viewState: FlowRelay&lt;T&gt; = FlowRelay()
+    private val inputActions: Channel&lt;R&gt; = Channel()
+
+    init {
+        scope.launch {
+            val lastState = StateWrapper(initialState)
+            val multicaster = inputActions.multicast(scope)
+            val flowList = sideEffects.map { sideEffect ->
+                sideEffect(multicaster.asFlow(), { lastState.state })
+            }.run {
+                toMutableList().apply {
+                    add(multicaster.asFlow())
+                }
+            }
+            flowList.merge().onEach { kprint("result $it") }
+                .onCompletion { inputActions.cancel() }
+                .scan(lastState.state, reducer)
+                .distinctUntilChanged()
+                .collect { outputState ->
+                    lastState.state = outputState
+                    viewState.send(outputState)
+                }
+        }
+    }
+
+    fun dispatchAction(action: R) = scope.launch {
+        kprint("Received input action: $action")
+        inputActions.send(action)
+    }
+}
+
+fun &lt;T&gt; Channel&lt;T&gt;.multicast(scope: CoroutineScope): BroadcastChannel&lt;T&gt; {
+    val channel = this
+    return scope.broadcast {
+        for (x in channel) {
+            send(x)
+        }
+    }.also {
+        it.invokeOnClose { channel.cancel() }
+    }
+}
+    </code>
+  </pre>
+
+  <p>I came across two challenges. The first was figuring out how to guarantee that each upstream flow that reflects a side
+  effect is subscribed to before sending the first event (we don't want to accidentally miss an event). That's what
+    onBindMerge is for.</p>
+
+  <p>The second challenge was making sure that we don't dispatch any events before the whole pipeline is connected. By
+  connected I mean that each side effect flow is listening to the upstream actions dispatched by dispatchAction, and
+    that the final observer that emits states to the view is listening for the combination of those merged flows.</p>
+
+  <p>I caught a race condition early thanks to testing on two platforms. My first implementation
+   of dispatchAction did not do work to guarantee that downstream flows were collecting. It happened by luck to not
+  miss any events when run on the android emulator, but the same component did not work on iOS. A good unit test would
+  catch this as well. It's nice knowing that race conditions are more likely to pop up early in your development flow as
+  a multiplatform developer.</p>
+
+  <p>A sample usage for a page with search box at the top and a filtering dialog looks like:</p>
+
+  <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5">StateMachine.kt</a>
+  <code>
+    <pre>
+/**
+* Sample usage for screen with search bar at the top, a filter icon that launches a modal/dialog with advanced filter
+* options, and displays results as a list.
+*/
+
+class SearchStateMachine(
+  scope: CoroutineScope,
+  private val exitDb: KExitDatabase
+) {
+  private val stateMachine = StateMachine(
+    scope = scope,
+    initialState = Search.State(Search.StateType.InitialState, emptyList(), null),
+    reducer = ::reducer,
+    sideEffects = listOf(
+      ::generateFilterOptions,
+      ::queryDatabase,
+      ::filterDatabase
+    )
+  )
+  val viewState = stateMachine.viewState
+  val dispatchAction = stateMachine::dispatchAction
+
+  // Needed for android so we can generate diffResult.
+  var lastList: AtomicRef<List<SearchResult>> = atomic(listOf())
+
+  private fun generateFilterOptions(input: Flow<Search.Action>, state: () -> Search.State): Flow<Search.Action> =
+    input.filterIsInstance<Search.Action.InitializeFiltersAction>()
+      .map {
+        val defaultOptions = state().filterOptions
+        val filterOptions = withContext(Dispatchers.Default) {
+          val countryList = exitDb.exitEntityQueries.listAllCountries().executeAsList()
+          defaultOptions.copy(filterCountryList = countryList)
+        }
+        Search.Action.FilterOptionsLoadedAction(filterOptions = filterOptions)
+      }
+
+  private fun filterDatabase(input: Flow<Search.Action>, state: () -> Search.State): Flow<Search.Action> =
+    input.filterIsInstance<Search.Action.FilterUpdateAction>()
+      .map { action ->
+        performFilterSearch(action.filterState, action.query)
+      }
+
+  private fun queryDatabase(input: Flow<Search.Action>, state: () -> Search.State): Flow<Search.Action> =
+    input.filterIsInstance<Search.Action.QueryChangeAction>()
+      .map { action ->
+        performQuerySearch(action.filterState, action.query)
+      }
+
+  private suspend fun performFilterSearch(filterState: FilterState, query: String) = withContext(Dispatchers.Default) {
+      val searchResultList = KSearchQueryExecutor(exitDb).queryDatabase(filterState, query)
+      val prevList = lastList.value
+      val diffResult = KDiffUtil.calculateDiff(
+        SearchResultItemDiffHelper(
+          newList = searchResultList,
+          oldList = prevList
+        )
+      )
+      Search.Action.SearchLoadedAction(searchResultList, diffResult)
+    }
+
+  private suspend fun performQuerySearch(filterState: FilterState, query: String) = withContext(Dispatchers.Default) {
+      val newList = KSearchQueryExecutor(exitDb).queryByName(filterState, query)
+      val prevList = lastList.value
+      val diffResult = KDiffUtil.calculateDiff(
+        SearchResultItemDiffHelper(
+          newList = newList,
+          oldList = prevList
+        )
+      )
+      Search.Action.SearchLoadedAction(newList, diffResult)
+    }
+
+  private suspend fun reducer(state: Search.State, action: Search.Action): Search.State {
+    //kprint("reducer: curState=$state action=$action")
+    return when (action) {
+      is Search.Action.InitializeFiltersAction -> state
+      is Search.Action.FilterOptionsLoadedAction -> {
+        state.copy(type = Search.StateType.FilterOptionsLoaded, filterOptions = action.filterOptions)
+      }
+      is Search.Action.TapFilterCancelBtn -> state.copy(
+        type = Search.StateType.CloseFilterState,
+        isFilterWindowVisible = false
+      )
+      is Search.Action.TapOpenFilterIcon -> {
+        kprint("returning OpenFilterState")
+        state.copy(type = Search.StateType.OpenFilterState, isFilterWindowVisible = true)
+      }
+      is Search.Action.QueryChangeAction -> state
+      is Search.Action.BackButtonTapAction -> {
+        if (state.isFilterWindowVisible) {
+          state.copy(type = Search.StateType.CloseFilterState, isFilterWindowVisible = false)
+        } else {
+          state.copy(type = Search.StateType.ClosePageState, isFilterWindowVisible = false)
+        }
+      }
+      is Search.Action.FilterUpdateAction -> state.copy(
+        type = Search.StateType.CloseFilterState,
+        isFilterWindowVisible = false
+      )
+      is Search.Action.SearchLoadedAction -> {
+        lastList.value = action.items
+        state.copy(type = Search.StateType.ShowResultsState, items = action.items, diffResult = action.diffResult)
+      }
+    }
+  }
+}
+  </code>
+  </pre>
+
+</div>
+</body>
+</html>

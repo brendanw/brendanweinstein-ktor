@@ -88,12 +88,14 @@
   <p>I thought we could do better. When I start implementing an experiment, I’d like to write code that looks like:</p>
 
   <pre>
+    <code>
 val variant = Experiment.PRICING.activeVariant
 when (variant) { 
    is CONTROL -> PurchaseActivity.launch(price = variant.price) 
    is A -> PurchaseActivity.launch(price = variant.price, metadata = variant.metadata)
    is B -> PurchaseActivity.launch(price = variant.price) 
 }
+    </code>
   </pre>
 
   <p>I’d like to type Experiment and then see a list of autocomplete options in the IDE. Once I have a reference to the
