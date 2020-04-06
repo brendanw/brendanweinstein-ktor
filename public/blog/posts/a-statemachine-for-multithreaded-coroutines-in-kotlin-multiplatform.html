@@ -64,6 +64,7 @@
       margin-left: 50px;
       margin-top: 50px;
       margin-right: 50px;
+      margin-bottom: 50px;
       max-width: 900px;
     }
 
@@ -73,7 +74,8 @@
 
     pre {
       padding-left: 20px;
-      background: #eee
+      background: #eee;
+      margin-bottom: 50px;
     }
   </style>
 </head>
@@ -88,31 +90,31 @@
 
   <p class="date"><i>5 April 2020</i></p>
 
-  <p>State machines work well for kotlin multiplatform, where we can write business logic once in kotlin but still need to
-    re-implement rendering the user interface on iOS and android.</p>
+  <p>State machines work well for kotlin multiplatform where we can write business logic once in kotlin and
+    re-implement rendering logic with platform-specific code for android and iOS.</p>
 
   <p>A state machine lays out a set of finite states that the UI can be in at a given moment in response to a set of
     finite actions/events. A well-defined state machine allows us to have a readable narrative of what actions led to
     which states through the life of our program. This saves us from cycles lost adding breadcrumbs for tricky bugs,
-    as well as cycles lost to incorrect inferences required by unclear logs.</p>
+    as well as cycles lost to incorrect inferences that can easily be made reviewing poorly crafted logs.</p>
 
-  <p>Writing a state machine class that plays well with multithreaded coroutines (native-mt) took significant trial
-    and error, so I wanted to share code that gives you a Mealey state machine with just one file of minimal kotlin.
-    I've used this without issue on both android and iOS:</p>
+  <p>Writing a state machine class that plays well with multi-threaded coroutines (native-mt) took some trial
+    and error, so I wanted to share code for a Mealy state machine that is just 36 lines of kotlin. This first
+    implementation works on coroutines-native-mt 1.3.5 and below:</p>
 
-  <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5">StateMachine.kt</a>
+  <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5#file-statemachine-kt">StateMachine.kt</a>
   <pre><code>
 class StateWrapper&lt;T&gt;(var state: T)
 
-class StateMachine&lt;R : Any, T&gt;(
+class StateMachine&lt&lt;R : Any, T&gt&gt;(
   val scope: CoroutineScope,
   private val initialState: T,
-  private val sideEffects: List<(Flow&lt;R&gt;, () -> T) -> Flow&lt;R&gt;>,
+  private val sideEffects: List<(Flow&lt&lt;R&gt;, () -> T) -> Flow&lt;R&gt;>,
   private val reducer: suspend (accumulator: T, value: R) -> T
 ) {
-  val viewState: FlowRelay&lt;T&gt; = FlowRelay()
+  val viewState: ViewStateFlow&lt&lt;T&gt; = ViewStateFlow()
   private var isInitialized = atomic(false)
-  private val inputActions: BroadcastChannel&lt;R&gt; = BroadcastChannel(Channel.BUFFERED)
+  private val inputActions: BroadcastChannel&lt;R&gt&gt; = BroadcastChannel(Channel.BUFFERED)
 
   init {
     scope.launch {
@@ -146,23 +148,88 @@ class StateMachine&lt;R : Any, T&gt;(
   }
 
 }
+
+/**
+ * Ensures that every down stream flow is bound to the upstream
+ */
+fun &lt;T&gt; List&lt;Flow&lt;&lt;T&gt;&gt;.onBindMerge(onBind: () -> Unit): Flow&lt;T&gt&gt; {
+  var boundFlows = atomic(0)
+  return channelFlow {
+    forEach { flow ->
+      launch {
+        flow.onStart {
+          if (boundFlows.incrementAndGet() == size) onBind()
+        }.collect {
+          send(it)
+        }
+      }
+    }
+  }
+}
 </code></pre>
 
-  <p>The dispatchAction function is not elegant. We can clean it up by using a Rendezvouz channel. A rendezvouz channel
-    suspends send calls until there is at least one downstream subscriber and it suspends receiver calls until there is
-    at
-    least one upstream send call. This is a cleaner version of the above code and uses a rendezvouz channel:</p>
+  <p>We need the StateWrapper class since the state that is emitted from the flow will always be frozen. StateWrapper
+  allows us to wrap the frozen object with an unfrozen reference that we can mutate without encountering an
+    InvalidMutabilityException or having to resort to atomics.</p>
 
-  <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5">StateMachine.kt</a>
+  <p>We need onBindMerge because the onStart hook for the merge operator will get called before the merged flows are
+  bound. You can see that by observing the output of this sample:</p>
+
+  <pre><code>
+fun main() = runBlocking&lt;Unit&gt; {
+   val inputChannel = Channel&lt;Int&gt;()
+   launch {
+      println("waiting to send first elem")
+      inputChannel.send(0)
+      println("sent first elem")
+   }
+
+   launch {
+      val multicaster = inputChannel.multicast(this)
+      delay(3000)
+      val outputFlow = merge(
+          multicaster.asFlow().onStart { println("flow 1: started") }
+              .onEach { println("flow 1: $it") },
+          multicaster.asFlow().onStart { println("flow 2: started") }
+              .onEach { println("flow 2: $it") },
+          multicaster.asFlow().onStart { println("flow 3: started") }
+              .onEach { println("flow 3: $it") }
+      )
+      delay(3000)
+      outputFlow.collect {
+         println("elem: $it")
+      }
+   }
+}
+
+emits:
+waiting to send first elem
+flow 1: started
+flow 3: started
+flow 2: started
+sent first elem
+flow 3: 0
+flow 1: 0
+flow 2: 0
+elem: 0
+elem: 0
+elem: 0
+  </code></pre>
+
+  <p>We can clean this up by using a Rendezvouz channel and the broadcast extension function. A rendezvouz channel's
+  send function suspends until a corresponding call to receive is made, so we know that we cannot dispatch any
+  actions until the pipeline is connected to a downstream observer that is listening.</p>
+
+  <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5#file-statemachine-kt">StateMachine.kt</a>
   <pre>
     <code>
 class StateMachine&lt;R : Any, T&gt;(
     val scope: CoroutineScope,
     private val initialState: T,
-    private val sideEffects: List<(Flow&lt;R&gt;, () -> T) -> Flow&lt;R&gt;>,
+    private val sideEffects: List&lt;(Flow&lt;R&gt;, () -> T) -> Flow&lt;R&gt;&gt;,
     private val reducer: suspend (accumulator: T, value: R) -> T
 ) {
-    val viewState: FlowRelay&lt;T&gt; = FlowRelay()
+    val viewState: ViewStateFlow&lt;T&gt; = ViewStateFlow()
     private val inputActions: Channel&lt;R&gt; = Channel()
 
     init {
@@ -206,30 +273,59 @@ fun &lt;T&gt; Channel&lt;T&gt;.multicast(scope: CoroutineScope): BroadcastChanne
     </code>
   </pre>
 
-  <p>I came across two challenges. The first was figuring out how to guarantee that each upstream flow that reflects a side
-  effect is subscribed to before sending the first event (we don't want to accidentally miss an event). That's what
-    onBindMerge is for.</p>
+  <p>We can confirm that we no longer need onBindMerge with this sample.</p>
 
-  <p>The second challenge was making sure that we don't dispatch any events before the whole pipeline is connected. By
-  connected I mean that each side effect flow is listening to the upstream actions dispatched by dispatchAction, and
-    that the final observer that emits states to the view is listening for the combination of those merged flows.</p>
+  <pre><code>
+fun main() = runBlocking&lt;Unit&gt; {
+   val inputChannel = BroadcastChannel&lt;Int&gt;(Channel.BUFFERED)
+   launch {
+      println("waiting to send first elem")
+      while (!isActive.get()) {
+        yield()
+      }
+      inputChannel.send(0)
+      println("sent first elem")
+   }
 
-  <p>I caught a race condition early thanks to testing on two platforms. My first implementation
-   of dispatchAction did not do work to guarantee that downstream flows were collecting. It happened by luck to not
-  miss any events when run on the android emulator, but the same component did not work on iOS. A good unit test would
-  catch this as well. It's nice knowing that race conditions are more likely to pop up early in your development flow as
-  a multiplatform developer.</p>
+   launch {
+      delay(3000)
+      val outputFlow = merge(
+          inputChannel.asFlow().onStart { println("flow 1: started") }
+              .onEach { println("flow 1: $it") },
+          inputChannel.asFlow().onStart { println("flow 2: started") }
+              .onEach { println("flow 2: $it") },
+          inputChannel.asFlow().onStart { println("flow 3: started") }
+              .onEach { println("flow 3: $it") }
+      ).onStart { isActive.compareAndSet(false, true) }
+      delay(3000)
+      outputFlow.collect {
+         println("elem: $it")
+      }
+   }
+}
 
-  <p>A sample usage for a page with search box at the top and a filtering dialog looks like:</p>
+emits:
+waiting to send first elem
+sent first elem
+flow 1: started
+flow 2: started
+flow 3: started
+  </code></pre>
 
-  <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5">StateMachine.kt</a>
+  <p>The first implementation of dispatchAction did not properly guarantee that downstream flows were collecting. The
+    pipeline happened by luck to not miss any events when run on the android emulator, but the first dispatched events
+    were missed on iOS.. It's nice knowing that race conditions are more likely to pop up early in your development flow
+    as a multiplatform developer since you'll be forced to regularly test in dissimilar environments.</p>
+
+  <p>A sample usage for a page with a search input, filtering dialog, and list of results looks like:</p>
+
+  <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5#file-searchstatemachine-kt">SearchStateMachine.kt</a>
   <code>
     <pre>
 /**
 * Sample usage for screen with search bar at the top, a filter icon that launches a modal/dialog with advanced filter
 * options, and displays results as a list.
 */
-
 class SearchStateMachine(
   scope: CoroutineScope,
   private val exitDb: KExitDatabase
@@ -248,10 +344,10 @@ class SearchStateMachine(
   val dispatchAction = stateMachine::dispatchAction
 
   // Needed for android so we can generate diffResult.
-  var lastList: AtomicRef<List<SearchResult>> = atomic(listOf())
+  var lastList: AtomicRef&lt;List&lt;SearchResult&gt;&gt; = atomic(listOf())
 
-  private fun generateFilterOptions(input: Flow<Search.Action>, state: () -> Search.State): Flow<Search.Action> =
-    input.filterIsInstance<Search.Action.InitializeFiltersAction>()
+  private fun generateFilterOptions(input: Flow&lt;Search.Action&gt;, state: () -> Search.State): Flow&lt;Search.Action&gt; =
+    input.filterIsInstance&lt;Search.Action.InitializeFiltersAction&gt;()
       .map {
         val defaultOptions = state().filterOptions
         val filterOptions = withContext(Dispatchers.Default) {
@@ -261,13 +357,13 @@ class SearchStateMachine(
         Search.Action.FilterOptionsLoadedAction(filterOptions = filterOptions)
       }
 
-  private fun filterDatabase(input: Flow<Search.Action>, state: () -> Search.State): Flow<Search.Action> =
+  private fun filterDatabase(input: Flow&lt;Search.Action&gt;, state: () -> Search.State): Flow&lt;Search.Action&gt; =
     input.filterIsInstance<Search.Action.FilterUpdateAction>()
       .map { action ->
         performFilterSearch(action.filterState, action.query)
       }
 
-  private fun queryDatabase(input: Flow<Search.Action>, state: () -> Search.State): Flow<Search.Action> =
+  private fun queryDatabase(input: Flow&lt;Search.Action&gt;, state: () -> Search.State): Flow&lt;Search.Action&gt; =
     input.filterIsInstance<Search.Action.QueryChangeAction>()
       .map { action ->
         performQuerySearch(action.filterState, action.query)
@@ -298,7 +394,7 @@ class SearchStateMachine(
     }
 
   private suspend fun reducer(state: Search.State, action: Search.Action): Search.State {
-    //kprint("reducer: curState=$state action=$action")
+    kprint("reducer: curState=$state action=$action")
     return when (action) {
       is Search.Action.InitializeFiltersAction -> state
       is Search.Action.FilterOptionsLoadedAction -> {
@@ -309,7 +405,6 @@ class SearchStateMachine(
         isFilterWindowVisible = false
       )
       is Search.Action.TapOpenFilterIcon -> {
-        kprint("returning OpenFilterState")
         state.copy(type = Search.StateType.OpenFilterState, isFilterWindowVisible = true)
       }
       is Search.Action.QueryChangeAction -> state
@@ -333,6 +428,14 @@ class SearchStateMachine(
 }
   </code>
   </pre>
+
+  <p>This <a href="https://github.com/kaushikgopal/movies-usf-android">MVI sample</a>
+    and <a href="https://github.com/freeletics/RxRedux">RxRedux</a> introduced me to State Machine patterns on android.
+    Thank you Roman Elizarov for patiently bearing <a href="https://github.com/Kotlin/kotlinx.coroutines/issues/1745">
+      with my basic questions</a> on github; I am happy I was able to make a reproducer for
+    <a href="https://github.com/Kotlin/kotlinx.coroutines/issues/1831>">one coroutines bug</a> in the process of getting this
+    pattern worked out. Running test code with Kotlin 1.4-M1 is a significant performance improvement over 1.3.71;
+    looking forward to moving faster in learning and development as the ecosystem upgrades next month.</p>
 
 </div>
 </body>
