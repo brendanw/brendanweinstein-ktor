@@ -486,8 +486,8 @@ class SearchStateMachine(
   </code>
   </pre>
 
-  <p>Last year a lot of development teams significantly reduced how much they logged to reduce risk exposure in response
-    to GDPR. Another approach to reduce risk but not sacrifice consistent logging is to use the
+  <p>Last year a lot of development teams significantly reduced how much they logged to reduce GDPR risk exposure.
+    Another approach that does not sacrifice consistent logging is to use the
   <a href="https://github.com/ZacSweers/redacted-compiler-plugin">Redacted</a> compiler plugin to apply
   a @Redacted annotation to any field with personally identifiable information (PII) class so its value is
     redacted from a data class' toString implementation.</p>
