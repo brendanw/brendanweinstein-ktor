@@ -212,7 +212,7 @@ flow 2: started
 flow 3: started
   </code></pre>
 
-  <p>We can clean this up by using a Rendezvouz channel and the broadcast extension function. A rendezvouz channel's
+  <p>We can clean this up by using a Rendezvous channel and the broadcast extension function. A rendezvouz channel's
   send function suspends until a corresponding call to receive is made, so we know that we cannot dispatch any
   actions until the pipeline is connected to a downstream observer that is listening.</p>
 
