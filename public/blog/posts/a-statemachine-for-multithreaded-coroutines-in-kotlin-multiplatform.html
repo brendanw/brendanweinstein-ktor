@@ -486,12 +486,11 @@ class SearchStateMachine(
   </code>
   </pre>
 
-  <p>The General Data Protection Regulation (GDPR) brought higher liability for products that accidentally
-  expose personally identifiable information (PII) to 3rd parties without the user's consent. Last year
-  a lot of development teams significantly reduced how much they logged to reduce risk exposure. Another approach
-  to reduce risk but not sacrifice consistent logging is to use the
+  <p>Last year a lot of development teams significantly reduced how much they logged to reduce risk exposure in response
+    to GDPR. Another approach to reduce risk but not sacrifice consistent logging is to use the
   <a href="https://github.com/ZacSweers/redacted-compiler-plugin">Redacted</a> compiler plugin to apply
-  a @Redacted annotation to any PII field in a State class so that its value is redacted from toString.</p>
+  a @Redacted annotation to any field with personally identifiable information (PII) class so its value is
+    redacted from a data class' toString implementation.</p>
 
   <p>This <a href="https://github.com/kaushikgopal/movies-usf-android">MVI sample</a>
     and <a href="https://github.com/freeletics/RxRedux">RxRedux</a> introduced me to State Machine patterns on android.
