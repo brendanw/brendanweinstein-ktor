@@ -323,6 +323,67 @@ flow 3: started
   <code>
     <pre>
 /**
+* Define a finite set of input actions and a finite set of output view states.
+*
+* This lives in a common module that both the android and iOS common modules depend on.
+*/
+class Search {
+
+  /**
+   * Defines default options for each filter section
+   */
+  data class FilterOptions(
+    val filterCountryList: List<String> = defaultCountryList,
+    val filterExitDirectionList: List<String> = exitDirectionList
+  )
+
+  sealed class Action {
+    object InitializeFiltersAction : Search.Action()
+    data class FilterOptionsLoadedAction(val filterOptions: FilterOptions) : Search.Action()
+
+    object TapFilterCancelBtn : Search.Action()
+    object TapOpenFilterIcon : Search.Action()
+    object BackButtonTapAction : Search.Action()
+
+    data class QueryChangeAction(
+      val filterState: FilterState,
+      val query: String
+    ) : Search.Action()
+
+    data class FilterUpdateAction(
+      val filterState: FilterState,
+      val query: String
+    ) : Search.Action()
+
+    data class SearchLoadedAction(
+      val items: List<SearchResult>,
+      val diffResult: DiffResult?
+    ) : Search.Action()
+  }
+
+  enum class StateType {
+    InitialState,
+    FilterOptionsLoaded,
+    ShowResultsState,
+    CloseFilterState,
+    ClosePageState,
+    OpenFilterState
+  }
+
+  /*
+  * StateType is our workaround to not wanting to redefine copy-able properties for each class
+  * definition within a sealed class.
+  */
+  data class State(
+    val type: StateType,
+    val items: List<SearchResult>,
+    val diffResult: DiffResult?,
+    val isFilterWindowVisible: Boolean = false,
+    val filterOptions: FilterOptions = FilterOptions()
+  )
+}
+
+/**
 * Sample usage for screen with search bar at the top, a filter icon that launches a modal/dialog with advanced filter
 * options, and displays results as a list.
 */
