@@ -212,9 +212,9 @@ flow 2: started
 flow 3: started
   </code></pre>
 
-  <p>We can clean this up by using a Rendezvous channel and the broadcast extension function. A rendezvouz channel's
-  send function suspends until a corresponding call to receive is made, so we know that we cannot dispatch any
-  actions until the pipeline is connected to a downstream observer that is listening.</p>
+  <p>We can clean this up by using a rendezvous channel and the broadcast extension function. A rendezvous channel's
+  send function suspends until a corresponding call to receive is made, so we know no actions can be dispatched until
+     a downstream observer is listening.</p>
 
   <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5#file-statemachine-kt">StateMachine.kt</a>
   <pre>
