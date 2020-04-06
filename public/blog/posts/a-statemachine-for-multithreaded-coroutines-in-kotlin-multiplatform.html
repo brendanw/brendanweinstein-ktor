@@ -173,7 +173,7 @@ fun &lt;T&gt; List&lt;Flow&lt;&lt;T&gt;&gt;.onBindMerge(onBind: () -> Unit): Flo
     InvalidMutabilityException or having to resort to atomics.</p>
 
   <p>We need onBindMerge because the onStart hook for the merge operator will get called before the merged flows are
-  bound. You can see that by observing the output of this sample:</p>
+  bound as seen in this sample:</p>
 
   <pre><code>
 fun main() = runBlocking&lt;Unit&gt; {
