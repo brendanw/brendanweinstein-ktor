@@ -106,10 +106,10 @@
   <pre><code>
 class StateWrapper&lt;T&gt;(var state: T)
 
-class StateMachine&lt&lt;R : Any, T&gt&gt;(
+class StateMachine&lt&lt;R : Any, T&gt;&gt;(
   val scope: CoroutineScope,
   private val initialState: T,
-  private val sideEffects: List<(Flow&lt&lt;R&gt;, () -> T) -> Flow&lt;R&gt;>,
+  private val sideEffects: List<(Flow&lt&lt;R&gt;, () -> T) -> Flow&lt;R&gt;&gt;,
   private val reducer: suspend (accumulator: T, value: R) -> T
 ) {
   val viewState: ViewStateFlow&lt&lt;T&gt; = ViewStateFlow()
@@ -197,7 +197,6 @@ fun main() = runBlocking&lt;Unit&gt; {
       )
       delay(3000)
       outputFlow.collect {
-         println("elem: $it")
       }
    }
 }
@@ -211,9 +210,6 @@ sent first elem
 flow 3: 0
 flow 1: 0
 flow 2: 0
-elem: 0
-elem: 0
-elem: 0
   </code></pre>
 
   <p>We can clean this up by using a Rendezvouz channel and the broadcast extension function. A rendezvouz channel's
@@ -314,8 +310,8 @@ flow 3: started
 
   <p>The first implementation of dispatchAction did not properly guarantee that downstream flows were collecting. The
     pipeline happened by luck to not miss any events when run on the android emulator, but the first dispatched events
-    were missed on iOS.. It's nice knowing that race conditions are more likely to pop up early in your development flow
-    as a multiplatform developer since you'll be forced to regularly test in dissimilar environments.</p>
+    were missed on iOS. One benefit of multiplatform development is race conditions are more likely to pop up early as
+    you are forced to regularly test in dissimilar environments.</p>
 
   <p>A sample usage for a page with a search input, filtering dialog, and list of results looks like:</p>
 
@@ -419,13 +415,13 @@ class SearchStateMachine(
       }
 
   private fun filterDatabase(input: Flow&lt;Search.Action&gt;, state: () -> Search.State): Flow&lt;Search.Action&gt; =
-    input.filterIsInstance<Search.Action.FilterUpdateAction>()
+    input.filterIsInstance&lt;Search.Action.FilterUpdateAction&gt;()
       .map { action ->
         performFilterSearch(action.filterState, action.query)
       }
 
   private fun queryDatabase(input: Flow&lt;Search.Action&gt;, state: () -> Search.State): Flow&lt;Search.Action&gt; =
-    input.filterIsInstance<Search.Action.QueryChangeAction>()
+    input.filterIsInstance&lt;Search.Action.QueryChangeAction&gt;()
       .map { action ->
         performQuerySearch(action.filterState, action.query)
       }
@@ -489,6 +485,13 @@ class SearchStateMachine(
 }
   </code>
   </pre>
+
+  <p>The General Data Protection Regulation (GDPR) brought higher liability for products that accidentally
+  expose personally identifiable information (PII) to 3rd parties without the user's consent. Last year
+  a lot of development teams significantly reduced how much they logged to reduce risk exposure. Another approach
+  to reduce risk but not sacrifice consistent logging is to use the
+  <a href="https://github.com/ZacSweers/redacted-compiler-plugin">Redacted</a> compiler plugin to apply
+  a @Redacted annotation to any PII field in a State class so that its value is redacted from toString.</p>
 
   <p>This <a href="https://github.com/kaushikgopal/movies-usf-android">MVI sample</a>
     and <a href="https://github.com/freeletics/RxRedux">RxRedux</a> introduced me to State Machine patterns on android.
