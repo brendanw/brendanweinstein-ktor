@@ -88,11 +88,21 @@
 <div class="main-content">
   <h2>Replacing LiveData with Flow</h2>
 
-  <p class="date"><i>5 April 2020</i></p>
+  <p class="date"><i>7 April 2020</i></p>
 
-  <p>
+  <p>Unless you are working on an application that uses databinding, you should switch from using MutableLiveData/LiveData
+  to Flow as the bridge between your Activity/Fragment/View and ViewModel. MutableLiveData does not allow you to
+  safely parameterize by a non-nullable type. Flow does. With the introduction of `lifecycleScope` we get the benefit of
+    free lifecycle maintenance for free with Flow. Using two libraries with the same
+    project that can achieve the same outcome with minimal difference in performance unnecessarily stretches cognitive RAM.
+  A principle of minimalism favors increasing fluency in the more capable library.</p>
 
-  </p>
+  <p>Implementing a flow backed by a rendezvous channel, and extension function we can create a Flow that replaces
+  the role that LiveData or BehaviorProcessor fulfills in many apps:</p>
+
+  <pre><code>
+
+  </code></pre>
 </div>
 </body>
 </html>
