@@ -177,39 +177,39 @@ fun &lt;T&gt; List&lt;Flow&lt;&lt;T&gt;&gt;.onBindMerge(onBind: () -> Unit): Flo
 
   <pre><code>
 fun main() = runBlocking&lt;Unit&gt; {
-   val inputChannel = Channel&lt;Int&gt;()
+   val inputChannel = BroadcastChannel&lt;Int&gt;(Channel.BUFFERED)
    launch {
       println("waiting to send first elem")
+      while (!isActive.get()) {
+        yield()
+      }
       inputChannel.send(0)
       println("sent first elem")
    }
 
    launch {
-      val multicaster = inputChannel.multicast(this)
       delay(3000)
       val outputFlow = merge(
-          multicaster.asFlow().onStart { println("flow 1: started") }
+          inputChannel.asFlow().onStart { println("flow 1: started") }
               .onEach { println("flow 1: $it") },
-          multicaster.asFlow().onStart { println("flow 2: started") }
+          inputChannel.asFlow().onStart { println("flow 2: started") }
               .onEach { println("flow 2: $it") },
-          multicaster.asFlow().onStart { println("flow 3: started") }
+          inputChannel.asFlow().onStart { println("flow 3: started") }
               .onEach { println("flow 3: $it") }
-      )
+      ).onStart { isActive.compareAndSet(false, true) }
       delay(3000)
       outputFlow.collect {
+         println("elem: $it")
       }
    }
 }
 
 emits:
 waiting to send first elem
-flow 1: started
-flow 3: started
-flow 2: started
 sent first elem
-flow 3: 0
-flow 1: 0
-flow 2: 0
+flow 1: started
+flow 2: started
+flow 3: started
   </code></pre>
 
   <p>We can clean this up by using a Rendezvouz channel and the broadcast extension function. A rendezvouz channel's
@@ -273,39 +273,39 @@ fun &lt;T&gt; Channel&lt;T&gt;.multicast(scope: CoroutineScope): BroadcastChanne
 
   <pre><code>
 fun main() = runBlocking&lt;Unit&gt; {
-   val inputChannel = BroadcastChannel&lt;Int&gt;(Channel.BUFFERED)
+   val inputChannel = Channel&lt;Int&gt;()
    launch {
       println("waiting to send first elem")
-      while (!isActive.get()) {
-        yield()
-      }
       inputChannel.send(0)
       println("sent first elem")
    }
 
    launch {
+      val multicaster = inputChannel.multicast(this)
       delay(3000)
       val outputFlow = merge(
-          inputChannel.asFlow().onStart { println("flow 1: started") }
+          multicaster.asFlow().onStart { println("flow 1: started") }
               .onEach { println("flow 1: $it") },
-          inputChannel.asFlow().onStart { println("flow 2: started") }
+          multicaster.asFlow().onStart { println("flow 2: started") }
               .onEach { println("flow 2: $it") },
-          inputChannel.asFlow().onStart { println("flow 3: started") }
+          multicaster.asFlow().onStart { println("flow 3: started") }
               .onEach { println("flow 3: $it") }
-      ).onStart { isActive.compareAndSet(false, true) }
+      )
       delay(3000)
       outputFlow.collect {
-         println("elem: $it")
       }
    }
 }
 
 emits:
 waiting to send first elem
-sent first elem
 flow 1: started
-flow 2: started
 flow 3: started
+flow 2: started
+sent first elem
+flow 3: 0
+flow 1: 0
+flow 2: 0
   </code></pre>
 
   <p>The first implementation of dispatchAction did not properly guarantee that downstream flows were collecting. The
