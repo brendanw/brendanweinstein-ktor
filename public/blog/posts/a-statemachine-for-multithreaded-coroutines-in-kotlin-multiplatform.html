@@ -112,13 +112,14 @@ class StateMachine&lt&lt;R : Any, T&gt;&gt;(
   private val sideEffects: List<(Flow&lt&lt;R&gt;, () -> T) -> Flow&lt;R&gt;&gt;,
   private val reducer: suspend (accumulator: T, value: R) -> T
 ) {
-  val viewState: ViewStateFlow&lt&lt;T&gt; = ViewStateFlow()
+  private val _state: ConflatedBroadcastChannel(initialState)
+  val state = _state.asFlow()
   private var isInitialized = atomic(false)
   private val inputActions: BroadcastChannel&lt;R&gt&gt; = BroadcastChannel(Channel.BUFFERED)
 
   init {
     scope.launch {
-      val lastState = StateWrapper(initialState)
+      val lastState = atomic(initialState)
       val flowList = sideEffects.map { sideEffect ->
         sideEffect(inputActions.asFlow(), { lastState.state })
       }.run {
@@ -133,8 +134,8 @@ class StateMachine&lt&lt;R : Any, T&gt;&gt;(
         .distinctUntilChanged()
         .collect { outputState ->
           kprint("state emitted: $outputState")
-          lastState.state = outputState
-          viewState.send(outputState)
+          lastState.value = outputState
+          _state.send(outputState)
         }
     }
 
