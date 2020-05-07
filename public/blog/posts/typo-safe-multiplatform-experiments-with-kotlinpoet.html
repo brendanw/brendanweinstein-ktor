@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Posts - Brendan Weinstein</title>
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+        integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
   <style>
     @font-face {
       font-family: 'd-condensed'; /*a name to be used later*/
@@ -51,15 +51,30 @@
       text-decoration: none;
     }
 
+    .blog-item-list {
+      margin-top: 50px;
+    }
+
+    .blog-item {
+      font-family: monospace;
+    }
+
     .main-content {
       margin-left: 50px;
       margin-top: 50px;
       margin-right: 50px;
+      margin-bottom: 50px;
       max-width: 900px;
     }
 
     h2 {
       margin-bottom: 30px;
+    }
+
+    pre {
+      padding-left: 20px;
+      background: #eee;
+      margin-bottom: 50px;
     }
   </style>
 </head>
@@ -70,20 +85,17 @@
   </h1>
 </header>
 <div class="main-content">
-  <h2>Typo-safe multiplatform experiments with Kotlinpoet</h2>
-  <p class="date"><i>28 March 2020</i></p>
+  <h2>Typo-safe multiplatform experiments</h2>
+  <p class="date"><i>7 May 2020</i></p>
 
-  <p>A year ago I made a mistake on an experiment I thoroughly tested. It was an experiment to expose different buckets
-    of users to different sets of pricing. I tested each variant of the experiment thoroughly, going through the pains
-    to make a release build, upload it to the play store, and do end-to-end testing of purchases. And for the last step
-    of wrapping up my work I added in what the matching experiment names on the server should be in client code. And I
-    made a typo error. We launched the experiment and didn’t catch the error until several weeks later. It was a costly
-    mistake, as there were further experiments we wanted to conduct that depended on the results of that experiment.</p>
+  <p>Not too long ago I made a mistake on an experiment I thoroughly tested. It was an experiment to expose different buckets
+    of users to different sets of pricing. The last step in setting up the client-side experiment code was to
+    specify experiment names that matched names defined on the server, as well as variant names. Unfortunately I fat thumbed
+    a variant name. We launched the experiment and didn’t catch the error until several weeks later. It was a costly
+    mistake, as future roadmap decisions depended on the results of the pricing experiment.</p>
 
-  <p>Friends shared stories of similar mistakes happening, but with the field name of a variant having the typo. They
-    called it fat thumbing. My CTO suggested the best way to avoid the mistake in the future would be to have a location
-    where all the experiment names are defined on the client and an endpoint that returns the list of experiment names,
-    and run a test to check that all the client-defined names in the experiment exist on the server.</p>
+  <p>Chatting with friends they shared similar stories of an experiment gone wrong involving a typo in experiment configuration.
+    My CTO suggested that we could write a test that hits a backend endpoint to verify experiment and variant names.</p>
 
   <p>I thought we could do better. When I start implementing an experiment, I’d like to write code that looks like:</p>
 
@@ -94,13 +106,17 @@ when (variant) { 
    is CONTROL -> PurchaseActivity.launch(price = variant.price) 
    is A -> PurchaseActivity.launch(price = variant.price, metadata = variant.metadata)
    is B -> PurchaseActivity.launch(price = variant.price) 
-}
-    </code>
-  </pre>
+}.safe
 
-  <p>I’d like to type Experiment and then see a list of autocomplete options in the IDE. Once I have a reference to the
+val Any?.safe get() = Unit
+</code>
+</pre>
+
+  <p>I’d like to type `Experiment` and see a list of autocomplete options in the IDE. Once I have a reference to the
     active variant for the user, then I’d like to type a dot and see a list of accessible fields for that variant that
-    are strongly typed. My first stab at an implementation looked something like this:</p>
+    are strongly typed. Lastly I'd like to enforce that each variant is implemented regardless of how the when statement
+    is adjusted in the future, hence the safe extension. The first stab at an implementation looked something
+    like:</p><br>
 
   <pre>
 object Experiment { 
@@ -131,29 +147,29 @@ abstract class Experiment {
     startup that passes a user id to and endpoint and get a list of experiments that user should be in, the active
     variant for each experiment, and values for individual fields defined for each variant.</p>
 
-  <p>The problem is how do I update the experiments and variants in a thread-safe way. I need to make the network call
-    and the logic to populate the new experiments objects on a background thread, and I want to have references to those
-    objects on the main thread in a way that guarantees I have the latest version. The approach I took is to make copies
+  <p>The problem is how do we update the experiments and variants in a thread-safe way. We need to make the network call
+    and the logic to populate the new experiments objects on a background thread. We want to have references to those
+    objects on the main thread in a way that guarantees we have the latest version. The approach we take is to make copies
     of experiments and variants when populating on a background thread, and put each of those new copies into a newly
     constructed experiment map. The experimentMap is the only mutable state shared between threads, so we use an
     atomic reference for this one field and get thread safety from all of its references by following copy-on-write.
-    Now we have an overall design that looks like this:</p>
+    Now we have an overall design that looks like this:</p><br>
 
   <pre>
 object ExperimentRepository { 
    var PRICING: PricingExperiment 
-   get() = experimentMap.value[“Pricing”]!! as PricingExperiment  
+   get() = experimentMap.value[&#34;Pricing&#34;]!! as PricingExperiment  
 
-   val experimentMap: AtomicRef = atomic(
+   val experimentMap: AtomicRef&lt;Map&lt;String, Experiment&gt;&gt; = atomic(
       mapOf( 
          "pricing" to PricingExperiment()   
       )
    )  
 
    val variantMap: Map = mapOf( 
-      VariantKey(“pricing”, “control”) to PricingExperiment.PricingVariant.CONTROL(),
-      VariantKey(“pricing”, “a”) to PricingExperiment.PricingVariant.A(),
-      VariantKey(“pricing”, “b”) to PricingExperiment.PricingVariant.B() 
+      VariantKey(&#34;pricing&#34;, &#34;control&#34;) to PricingExperiment.PricingVariant.CONTROL(),
+      VariantKey(&#34;pricing&#34;, &#34;a&#34;) to PricingExperiment.PricingVariant.A(),
+      VariantKey(&#34;pricing&#34;, &#34;b&#34;) to PricingExperiment.PricingVariant.B() 
    )     
 }
 
@@ -166,10 +182,10 @@ abstract class Experiment {
 
 interface Variant {
   val _name: String
-  fun populateFromFieldMap( fieldMap: Map<String, FieldResponse>): Variant
+  fun populateFromFieldMap(fieldMap: Map&lt&lt;String, FieldResponse&gt&gt;): Variant
 }
 
-data class VariantKey(val name: String, val variantId: String )
+data class VariantKey(val name: String, val variantId: String)
 
 data class FieldResponse(
   val type: String,
@@ -178,7 +194,7 @@ data class FieldResponse(
 )
 
 class PricingExperiment(
-  override var name: String = “pricing”, 
+  override var name: String = &#34;pricing&#34;, 
   override var isActive: Boolean = false,
   override var activeVariant: Variant = PricingVariant.CONTROL()
 ) : Experiment() { 
@@ -188,13 +204,23 @@ class PricingExperiment(
     }
 
   sealed class PricingVariant { 
-    class CONTROL(val price: Int) : PricingVariant() {   }
-    class A(val price: Int, val metadata: String) : PricingVariant() {  }  
-    class B(val price: Int) : PricingVariant() {   } 
+    class CONTROL(val price: Int) : PricingVariant() { 
+      override fun populateFromFieldMap(fieldMap: Map&lt;String, FieldResponse&gt;>) =
+        CONTROL(price = safeValue(fieldMap[&#34;price&#34;))
+    }
+
+    class A(val price: Int, val metadata: String) : PricingVariant() { 
+      override fun populateFromFieldMap(fieldMap: Map&lt;String, FieldResponse&gt;>) =
+        A(price = safeValue(fieldMap[&#34;price&#34;), metadata = safeValue(fieldMap[e&#34;metadatae&#34;]))
+    }  
+    class B(val price: Int) : PricingVariant() { 
+      override fun populateFromFieldMap(fieldMap: Map&lt;String, FieldResponse&gt;>) =
+        B(price = safeValue(fieldMap[&#34;price&#34;))
+    } 
   }
 }
 
-inline fun <reified T> safeValue(
+inline fun &lt;reified T&gt&gt; safeValue(
     value: String?,
     fallbackValue: T
 ): T {
@@ -205,7 +231,7 @@ inline fun <reified T> safeValue(
       Boolean::class -> value.toBoolean() as T
       Float::class -> value.toFloat() as T
       Double::class -> value.toDouble() as T
-      else -> throw IllegalArgumentException("${T::class.simpleName} is not supported by safeValue“)
+      else -> throw IllegalArgumentException("${T::class.simpleName} is not supported by safeValue&#34;)
     }
   } catch (e: NumberFormatException) {
     //TODO: Log exception
@@ -214,6 +240,15 @@ inline fun <reified T> safeValue(
 }
 </pre>
 
+  <p>
+If we split out the interfaces and abstract classes, we are left with a PricingExperiment class implementation and its
+    variant class implementations that can be code generated with KotlinPoet. This was my first foray into writing codegen.
+    The first 40 lines of code for generating more code were slow but productivity quickly accelerated after 20-30mins.
+    Co-workers who were worried about the approach and made improvements to the codegen plugin remarked they were surprised
+    at how nice it was to work with kotlinpoet which couples nicely with `run` and `apply`.
+    KotlinPoet helps you avoid the common pitfalls (eg substituting characters for
+    illegal class or variable names).
+  </p>
 
 </div>
 </body>
