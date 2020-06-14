@@ -104,8 +104,6 @@
 
   <a href="https://gist.github.com/brendanw/0b06ab41fa3e63d7cd2ab7fb055980d5#file-statemachine-kt">StateMachine.kt</a>
   <pre><code>
-class StateWrapper&lt;T&gt;(var state: T)
-
 class StateMachine&lt&lt;R : Any, T&gt;&gt;(
   val scope: CoroutineScope,
   private val initialState: T,
@@ -121,7 +119,7 @@ class StateMachine&lt&lt;R : Any, T&gt;&gt;(
     scope.launch {
       val lastState = atomic(initialState)
       val flowList = sideEffects.map { sideEffect ->
-        sideEffect(inputActions.asFlow(), { lastState.state })
+        sideEffect(inputActions.asFlow(), { lastState.value })
       }.run {
         toMutableList().apply {
           add(inputActions.asFlow())
@@ -130,7 +128,7 @@ class StateMachine&lt&lt;R : Any, T&gt;&gt;(
       flowList.onBindMerge { isInitialized.value = true }
         .onEach { kprint("result: $it") }
         .onCompletion { inputActions.cancel() }
-        .scan(lastState.state, reducer)
+        .scan(lastState.value, reducer)
         .distinctUntilChanged()
         .collect { outputState ->
           kprint("state emitted: $outputState")
@@ -169,7 +167,7 @@ fun &lt;T&gt; List&lt;Flow&lt;&lt;T&gt;&gt;.onBindMerge(onBind: () -> Unit): Flo
 }
 </code></pre>
 
-  <p>We need the StateWrapper class since the state that is emitted from the flow will always be frozen. StateWrapper
+  <p>We need lastState to be atomic since the state that is emitted from the flow will always be frozen. The atomic ref
   allows us to wrap the frozen object with an unfrozen reference that we can mutate without encountering an
     InvalidMutabilityException or having to resort to atomics.</p>
 
@@ -231,10 +229,10 @@ class StateMachine&lt;R : Any, T&gt;(
 
     init {
         scope.launch {
-            val lastState = StateWrapper(initialState)
+            val lastState = atomic(initialState)
             val multicaster = inputActions.multicast(scope)
             val flowList = sideEffects.map { sideEffect ->
-                sideEffect(multicaster.asFlow(), { lastState.state })
+                sideEffect(multicaster.asFlow(), { lastState.value })
             }.run {
                 toMutableList().apply {
                     add(multicaster.asFlow())
@@ -242,10 +240,10 @@ class StateMachine&lt;R : Any, T&gt;(
             }
             flowList.merge().onEach { kprint("result $it") }
                 .onCompletion { inputActions.cancel() }
-                .scan(lastState.state, reducer)
+                .scan(lastState.value, reducer)
                 .distinctUntilChanged()
                 .collect { outputState ->
-                    lastState.state = outputState
+                    lastState.value = outputState
                     viewState.send(outputState)
                 }
         }
